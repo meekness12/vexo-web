@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { Camera, AlertTriangle, ChevronRight, Loader2, Infinity, Target, VideoOff } from 'lucide-react';
+import { Camera, AlertTriangle, ChevronRight, Loader2, Infinity, Target, VideoOff, Check, ArrowRight, Move } from 'lucide-react';
 import { usePoseDetection } from '../hooks/usePoseDetection';
 import type { WorkoutSession, FeedbackType } from '../utils/types';
 
@@ -13,6 +13,7 @@ const ActiveSimulation: React.FC<ActiveSimulationProps> = ({ session, onAddFeedb
   const [elbowAngle, setElbowAngle] = useState(0);
   const [hipAngle, setHipAngle] = useState(0);
   const [phase, setPhase] = useState('UP');
+  const [guideAcknowledged, setGuideAcknowledged] = useState(false);
 
   const handleRepDetected = useCallback((type: FeedbackType, message: string) => {
     onAddFeedback(type, message);
@@ -29,6 +30,9 @@ const ActiveSimulation: React.FC<ActiveSimulationProps> = ({ session, onAddFeedb
     onFormUpdate: handleFormUpdate,
     enabled: session.status === 'ACTIVE',
   });
+
+  // Show the guide when the camera is ready but user hasn't acknowledged
+  const showGuide = !isLoading && !guideAcknowledged;
 
   // Calculate accuracy
   const accuracy = session.repsAttempted > 0
@@ -113,19 +117,118 @@ const ActiveSimulation: React.FC<ActiveSimulationProps> = ({ session, onAddFeedb
             </div>
           )}
 
-          {/* Calibration Overlay */}
-          {!isLoading && !isCalibrated && (
-            <div className="absolute inset-0 bg-bg/70 flex flex-col items-center justify-center gap-4 z-10">
-              <div className="w-40 h-40 border-2 border-lime/30 rounded-full flex items-center justify-center animate-pulse">
-                <Camera size={40} className="text-lime" />
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          {/* CAMERA POSITIONING GUIDE — shown after camera loads, before user starts */}
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          {showGuide && (
+            <div className="absolute inset-0 z-30 flex flex-col items-center justify-center">
+              {/* Semi-transparent overlay so user sees themselves behind */}
+              <div className="absolute inset-0 bg-bg/75 backdrop-blur-[2px]" />
+
+              <div className="relative z-10 flex flex-col items-center gap-6 max-w-lg px-6">
+                {/* Body Silhouette Guide */}
+                <div className="relative w-72 h-72">
+                  {/* Outer scanning ring */}
+                  <div className="absolute inset-0 border-2 border-lime/20 rounded-lg animate-pulse" />
+                  {/* Corner brackets */}
+                  <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-lime" />
+                  <div className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-lime" />
+                  <div className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-lime" />
+                  <div className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-lime" />
+
+                  {/* Human body silhouette (SVG) */}
+                  <svg className="absolute inset-0 w-full h-full p-8" viewBox="0 0 100 140" fill="none" stroke="rgba(163,230,53,0.5)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    {/* Head */}
+                    <circle cx="50" cy="15" r="8" />
+                    {/* Neck */}
+                    <line x1="50" y1="23" x2="50" y2="30" />
+                    {/* Shoulders */}
+                    <line x1="30" y1="35" x2="70" y2="35" />
+                    {/* Torso */}
+                    <line x1="50" y1="30" x2="50" y2="75" />
+                    {/* Left Arm */}
+                    <line x1="30" y1="35" x2="20" y2="55" />
+                    <line x1="20" y1="55" x2="15" y2="75" />
+                    {/* Right Arm */}
+                    <line x1="70" y1="35" x2="80" y2="55" />
+                    <line x1="80" y1="55" x2="85" y2="75" />
+                    {/* Hips */}
+                    <line x1="38" y1="75" x2="62" y2="75" />
+                    {/* Left Leg */}
+                    <line x1="38" y1="75" x2="32" y2="105" />
+                    <line x1="32" y1="105" x2="28" y2="130" />
+                    {/* Right Leg */}
+                    <line x1="62" y1="75" x2="68" y2="105" />
+                    <line x1="68" y1="105" x2="72" y2="130" />
+                    {/* Key joints — highlighted */}
+                    <circle cx="30" cy="35" r="3" fill="rgba(163,230,53,0.3)" />
+                    <circle cx="70" cy="35" r="3" fill="rgba(163,230,53,0.3)" />
+                    <circle cx="20" cy="55" r="3" fill="rgba(245,158,11,0.4)" stroke="rgba(245,158,11,0.6)" />
+                    <circle cx="80" cy="55" r="3" fill="rgba(245,158,11,0.4)" stroke="rgba(245,158,11,0.6)" />
+                    <circle cx="50" cy="75" r="3" fill="rgba(245,158,11,0.4)" stroke="rgba(245,158,11,0.6)" />
+                    {/* Labels */}
+                    <text x="6" y="58" fill="rgba(245,158,11,0.8)" fontSize="5" fontFamily="monospace">ELBOW</text>
+                    <text x="42" y="83" fill="rgba(245,158,11,0.8)" fontSize="5" fontFamily="monospace">HIP</text>
+                  </svg>
+
+                  {/* "DETECTION ZONE" label */}
+                  <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-bg/90 px-3 py-1 border border-lime/30">
+                    <span className="text-[8px] font-mono text-lime uppercase tracking-[.3em]">Detection_Zone</span>
+                  </div>
+                </div>
+
+                {/* Title */}
+                <div className="text-center space-y-2">
+                  <h2 className="text-xl font-black tracking-[.15em] uppercase text-white">Camera_Setup</h2>
+                  <p className="text-[10px] font-mono text-muted uppercase tracking-widest">Position your device for optimal AI tracking</p>
+                </div>
+
+                {/* Instructions */}
+                <div className="w-full space-y-3">
+                  <div className="flex items-start gap-3 bg-surface/50 border border-white/5 p-3">
+                    <div className="w-6 h-6 bg-lime/10 border border-lime/30 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <span className="text-[9px] font-black text-lime">1</span>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold text-white uppercase tracking-widest">Side Angle</p>
+                      <p className="text-[9px] font-mono text-muted mt-0.5">Place device to your left or right side so your profile is visible. This ensures elbow and hip angles are tracked accurately.</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3 bg-surface/50 border border-white/5 p-3">
+                    <div className="w-6 h-6 bg-lime/10 border border-lime/30 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <span className="text-[9px] font-black text-lime">2</span>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold text-white uppercase tracking-widest">Full Body Visible</p>
+                      <p className="text-[9px] font-mono text-muted mt-0.5">Your entire body — head to feet — must be within the camera frame. Step back or widen the angle if needed.</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3 bg-surface/50 border border-white/5 p-3">
+                    <div className="w-6 h-6 bg-amber/10 border border-amber/30 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <span className="text-[9px] font-black text-amber">3</span>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold text-white uppercase tracking-widest">Good Lighting</p>
+                      <p className="text-[9px] font-mono text-muted mt-0.5">Ensure the room is well-lit. Avoid backlighting — the AI needs to see your body clearly.</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Ready Button */}
+                <button
+                  onClick={() => setGuideAcknowledged(true)}
+                  className="w-full bg-lime text-bg font-black tracking-[.3em] uppercase py-4 hover:bg-lime-hi transition-all shadow-[0_0_25px_rgba(163,230,53,0.2)] flex items-center justify-center gap-3 text-sm mt-2"
+                >
+                  <Check size={18} /> I'm_Positioned — Start_Detection
+                </button>
               </div>
-              <p className="text-xs font-mono text-lime uppercase tracking-widest">Calibrating...</p>
-              <p className="text-[10px] font-mono text-muted">Position yourself in frame</p>
             </div>
           )}
 
-          {/* HUD Overlay */}
-          {!isLoading && isCalibrated && (
+          {/* HUD Overlay — only visible after guide is dismissed */}
+          {!isLoading && guideAcknowledged && (
             <div className="absolute inset-0 p-6 flex flex-col justify-between pointer-events-none z-10">
               {/* Top */}
               <div className="flex justify-between items-start">
@@ -210,7 +313,7 @@ const ActiveSimulation: React.FC<ActiveSimulationProps> = ({ session, onAddFeedb
               ))}
               {session.feedback.length === 0 && (
                 <p className="text-[9px] text-muted font-mono uppercase tracking-widest text-center py-8">
-                  {isLoading ? 'Loading AI...' : !isCalibrated ? 'Calibrating...' : 'Begin exercise — AI is watching'}
+                  {isLoading ? 'Loading AI...' : !guideAcknowledged ? 'Follow the setup guide...' : 'Begin exercise — AI is watching'}
                 </p>
               )}
             </div>
