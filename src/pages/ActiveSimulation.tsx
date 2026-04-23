@@ -117,115 +117,104 @@ const ActiveSimulation: React.FC<ActiveSimulationProps> = ({ session, onAddFeedb
             </div>
           )}
 
-          {/* ═══════════════════════════════════════════════════════════════ */}
-          {/* CAMERA POSITIONING GUIDE — shown after camera loads, before user starts */}
-          {/* ═══════════════════════════════════════════════════════════════ */}
-          {showGuide && (
-            <div className="absolute inset-0 z-30 flex flex-col items-center justify-center">
-              {/* Semi-transparent overlay so user sees themselves behind */}
-              <div className="absolute inset-0 bg-bg/75 backdrop-blur-[2px]" />
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* CAMERA POSITIONING GUIDE — Fixed Modal */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {showGuide && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/90 backdrop-blur-sm" />
 
-              <div className="relative z-10 flex flex-col items-center gap-6 max-w-lg px-6">
-                {/* Body Silhouette Guide */}
-                <div className="relative w-72 h-72">
-                  {/* Outer scanning ring */}
-                  <div className="absolute inset-0 border-2 border-lime/20 rounded-lg animate-pulse" />
-                  {/* Corner brackets */}
-                  <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-lime" />
-                  <div className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-lime" />
-                  <div className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-lime" />
-                  <div className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-lime" />
+          <div className="relative bg-bg2 border border-white/10 w-full max-w-2xl overflow-hidden rounded-sm flex flex-col max-h-[90vh]">
+            {/* Top accent line */}
+            <div className="h-[2px] w-full bg-gradient-to-r from-lime to-amber flex-shrink-0" />
 
-                  {/* Human body silhouette (SVG) */}
-                  <svg className="absolute inset-0 w-full h-full p-8" viewBox="0 0 100 140" fill="none" stroke="rgba(163,230,53,0.5)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    {/* Head */}
-                    <circle cx="50" cy="15" r="8" />
-                    {/* Neck */}
-                    <line x1="50" y1="23" x2="50" y2="30" />
-                    {/* Shoulders */}
-                    <line x1="30" y1="35" x2="70" y2="35" />
-                    {/* Torso */}
-                    <line x1="50" y1="30" x2="50" y2="75" />
-                    {/* Left Arm */}
-                    <line x1="30" y1="35" x2="20" y2="55" />
-                    <line x1="20" y1="55" x2="15" y2="75" />
-                    {/* Right Arm */}
-                    <line x1="70" y1="35" x2="80" y2="55" />
-                    <line x1="80" y1="55" x2="85" y2="75" />
-                    {/* Hips */}
-                    <line x1="38" y1="75" x2="62" y2="75" />
-                    {/* Left Leg */}
-                    <line x1="38" y1="75" x2="32" y2="105" />
-                    <line x1="32" y1="105" x2="28" y2="130" />
-                    {/* Right Leg */}
-                    <line x1="62" y1="75" x2="68" y2="105" />
-                    <line x1="68" y1="105" x2="72" y2="130" />
-                    {/* Key joints — highlighted */}
-                    <circle cx="30" cy="35" r="3" fill="rgba(163,230,53,0.3)" />
-                    <circle cx="70" cy="35" r="3" fill="rgba(163,230,53,0.3)" />
-                    <circle cx="20" cy="55" r="3" fill="rgba(245,158,11,0.4)" stroke="rgba(245,158,11,0.6)" />
-                    <circle cx="80" cy="55" r="3" fill="rgba(245,158,11,0.4)" stroke="rgba(245,158,11,0.6)" />
-                    <circle cx="50" cy="75" r="3" fill="rgba(245,158,11,0.4)" stroke="rgba(245,158,11,0.6)" />
-                    {/* Labels */}
-                    <text x="6" y="58" fill="rgba(245,158,11,0.8)" fontSize="5" fontFamily="monospace">ELBOW</text>
-                    <text x="42" y="83" fill="rgba(245,158,11,0.8)" fontSize="5" fontFamily="monospace">HIP</text>
-                  </svg>
+            <div className="p-8 overflow-y-auto flex flex-col items-center">
+              {/* Body Silhouette Guide */}
+              <div className="relative w-48 h-48 mb-6 flex-shrink-0">
+                {/* Outer scanning ring */}
+                <div className="absolute inset-0 border-2 border-lime/20 rounded-lg animate-pulse" />
+                {/* Corner brackets */}
+                <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-lime" />
+                <div className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-lime" />
+                <div className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-lime" />
+                <div className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-lime" />
 
-                  {/* "DETECTION ZONE" label */}
-                  <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-bg/90 px-3 py-1 border border-lime/30">
-                    <span className="text-[8px] font-mono text-lime uppercase tracking-[.3em]">Detection_Zone</span>
-                  </div>
+                {/* Human body silhouette (SVG) */}
+                <svg className="absolute inset-0 w-full h-full p-4" viewBox="0 0 100 140" fill="none" stroke="rgba(163,230,53,0.5)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="50" cy="15" r="8" />
+                  <line x1="50" y1="23" x2="50" y2="30" />
+                  <line x1="30" y1="35" x2="70" y2="35" />
+                  <line x1="50" y1="30" x2="50" y2="75" />
+                  <line x1="30" y1="35" x2="20" y2="55" />
+                  <line x1="20" y1="55" x2="15" y2="75" />
+                  <line x1="70" y1="35" x2="80" y2="55" />
+                  <line x1="80" y1="55" x2="85" y2="75" />
+                  <line x1="38" y1="75" x2="62" y2="75" />
+                  <line x1="38" y1="75" x2="32" y2="105" />
+                  <line x1="32" y1="105" x2="28" y2="130" />
+                  <line x1="62" y1="75" x2="68" y2="105" />
+                  <line x1="68" y1="105" x2="72" y2="130" />
+                  <circle cx="20" cy="55" r="3" fill="rgba(245,158,11,0.4)" stroke="rgba(245,158,11,0.6)" />
+                  <circle cx="80" cy="55" r="3" fill="rgba(245,158,11,0.4)" stroke="rgba(245,158,11,0.6)" />
+                  <circle cx="50" cy="75" r="3" fill="rgba(245,158,11,0.4)" stroke="rgba(245,158,11,0.6)" />
+                </svg>
+
+                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-bg/90 px-3 py-1 border border-lime/30">
+                  <span className="text-[8px] font-mono text-lime uppercase tracking-[.3em]">Detection_Zone</span>
                 </div>
-
-                {/* Title */}
-                <div className="text-center space-y-2">
-                  <h2 className="text-xl font-black tracking-[.15em] uppercase text-white">Camera_Setup</h2>
-                  <p className="text-[10px] font-mono text-muted uppercase tracking-widest">Position your device for optimal AI tracking</p>
-                </div>
-
-                {/* Instructions */}
-                <div className="w-full space-y-3">
-                  <div className="flex items-start gap-3 bg-surface/50 border border-white/5 p-3">
-                    <div className="w-6 h-6 bg-lime/10 border border-lime/30 flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <span className="text-[9px] font-black text-lime">1</span>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-bold text-white uppercase tracking-widest">Side Angle</p>
-                      <p className="text-[9px] font-mono text-muted mt-0.5">Place device to your left or right side so your profile is visible. This ensures elbow and hip angles are tracked accurately.</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3 bg-surface/50 border border-white/5 p-3">
-                    <div className="w-6 h-6 bg-lime/10 border border-lime/30 flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <span className="text-[9px] font-black text-lime">2</span>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-bold text-white uppercase tracking-widest">Full Body Visible</p>
-                      <p className="text-[9px] font-mono text-muted mt-0.5">Your entire body — head to feet — must be within the camera frame. Step back or widen the angle if needed.</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3 bg-surface/50 border border-white/5 p-3">
-                    <div className="w-6 h-6 bg-amber/10 border border-amber/30 flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <span className="text-[9px] font-black text-amber">3</span>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-bold text-white uppercase tracking-widest">Good Lighting</p>
-                      <p className="text-[9px] font-mono text-muted mt-0.5">Ensure the room is well-lit. Avoid backlighting — the AI needs to see your body clearly.</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Ready Button */}
-                <button
-                  onClick={() => setGuideAcknowledged(true)}
-                  className="w-full bg-lime text-bg font-black tracking-[.3em] uppercase py-4 hover:bg-lime-hi transition-all shadow-[0_0_25px_rgba(163,230,53,0.2)] flex items-center justify-center gap-3 text-sm mt-2"
-                >
-                  <Check size={18} /> I'm_Positioned — Start_Detection
-                </button>
               </div>
+
+              {/* Title */}
+              <div className="text-center space-y-2 mb-8">
+                <h2 className="text-2xl font-black tracking-[.2em] uppercase text-white">Camera_Calibration</h2>
+                <p className="text-[10px] font-mono text-muted uppercase tracking-[.3em]">Position your device for optimal AI tracking</p>
+              </div>
+
+              {/* Instructions Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full mb-8">
+                <div className="bg-surface border border-white/5 p-4 space-y-3">
+                  <div className="w-8 h-8 bg-lime/10 border border-lime/30 flex items-center justify-center">
+                    <span className="text-xs font-black text-lime">01</span>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-white uppercase tracking-widest">Side Angle</p>
+                    <p className="text-[9px] font-mono text-muted mt-1 leading-relaxed uppercase">Profile view required for elbow/hip analysis.</p>
+                  </div>
+                </div>
+
+                <div className="bg-surface border border-white/5 p-4 space-y-3">
+                  <div className="w-8 h-8 bg-lime/10 border border-lime/30 flex items-center justify-center">
+                    <span className="text-xs font-black text-lime">02</span>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-white uppercase tracking-widest">Full Body</p>
+                    <p className="text-[9px] font-mono text-muted mt-1 leading-relaxed uppercase">Entire body head-to-toe must be in frame.</p>
+                  </div>
+                </div>
+
+                <div className="bg-surface border border-white/5 p-4 space-y-3">
+                  <div className="w-8 h-8 bg-amber/10 border border-amber/30 flex items-center justify-center">
+                    <span className="text-xs font-black text-amber">03</span>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-white uppercase tracking-widest">Lighting</p>
+                    <p className="text-[9px] font-mono text-muted mt-1 leading-relaxed uppercase">High contrast environment. Avoid backlight.</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Ready Button */}
+              <button
+                onClick={() => setGuideAcknowledged(true)}
+                className="w-full bg-lime text-bg font-black tracking-[.3em] uppercase py-5 hover:bg-lime-hi transition-all shadow-[0_0_30px_rgba(163,230,53,0.3)] flex items-center justify-center gap-3 text-sm"
+              >
+                <Check size={18} strokeWidth={3} /> I_Am_Positioned — Initiate_Scan
+              </button>
             </div>
-          )}
+          </div>
+        </div>
+      )}
 
           {/* HUD Overlay — only visible after guide is dismissed */}
           {!isLoading && guideAcknowledged && (
