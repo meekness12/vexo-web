@@ -1,137 +1,233 @@
-import React, { useState } from 'react';
-import { Camera, RefreshCw, AlertTriangle, Crosshair } from 'lucide-react';
+import React, { useState, useCallback } from 'react';
+import { Camera, AlertTriangle, ChevronRight, Loader2, Infinity, Target, VideoOff } from 'lucide-react';
+import { usePoseDetection } from '../hooks/usePoseDetection';
+import type { WorkoutSession, FeedbackType } from '../utils/types';
 
-const ActiveSimulation: React.FC = () => {
-  const [reps, setReps] = useState(0);
-  const [isPulsing, setIsPulsing] = useState(false);
+interface ActiveSimulationProps {
+  session: WorkoutSession;
+  onAddFeedback: (type: FeedbackType, text: string) => void;
+  onEndSession: () => void;
+}
 
-  const handleSimulateRep = () => {
-    setIsPulsing(true);
-    setReps(prev => prev + 1);
-    setTimeout(() => setIsPulsing(false), 500);
-  };
+const ActiveSimulation: React.FC<ActiveSimulationProps> = ({ session, onAddFeedback, onEndSession }) => {
+  const [elbowAngle, setElbowAngle] = useState(0);
+  const [hipAngle, setHipAngle] = useState(0);
+  const [phase, setPhase] = useState('UP');
+
+  const handleRepDetected = useCallback((type: FeedbackType, message: string) => {
+    onAddFeedback(type, message);
+  }, [onAddFeedback]);
+
+  const handleFormUpdate = useCallback((elbow: number, hip: number, p: string) => {
+    setElbowAngle(elbow);
+    setHipAngle(hip);
+    setPhase(p);
+  }, []);
+
+  const { videoRef, canvasRef, isLoading, isCalibrated, cameraError } = usePoseDetection({
+    onRepDetected: handleRepDetected,
+    onFormUpdate: handleFormUpdate,
+    enabled: session.status === 'ACTIVE',
+  });
+
+  // Calculate accuracy
+  const accuracy = session.repsAttempted > 0
+    ? Math.round((session.currentReps / session.repsAttempted) * 100)
+    : 100;
+
+  // Elapsed time
+  const elapsed = Math.floor((Date.now() - session.startTime) / 1000);
+  const minutes = Math.floor(elapsed / 60);
+  const seconds = elapsed % 60;
+
+  if (cameraError) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center gap-8 p-8">
+        <div className="w-20 h-20 bg-red/10 border border-red/30 flex items-center justify-center text-red">
+          <VideoOff size={36} />
+        </div>
+        <div className="text-center max-w-md space-y-3">
+          <h2 className="text-2xl font-black tracking-tighter uppercase text-red">Camera_Error</h2>
+          <p className="text-sm font-mono text-muted leading-relaxed">{cameraError}</p>
+        </div>
+        <button
+          onClick={onEndSession}
+          className="px-8 py-3 border border-white/10 text-muted font-mono text-xs tracking-widest uppercase hover:text-white hover:border-white/20 transition-all"
+        >
+          Return_To_Dashboard
+        </button>
+      </div>
+    );
+  }
 
   return (
-    <div className="h-full flex flex-col gap-6 animate-in slide-in-from-bottom-8 duration-700">
-      <div className="flex justify-between items-end">
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-3">
-            <div className="w-1 h-6 bg-amber" />
-            <h1 className="text-3xl font-black tracking-tighter uppercase">Live_Simulation</h1>
-          </div>
-          <p className="text-[10px] text-muted font-mono ml-4 uppercase tracking-[.2em]">Feed_Source: OPTIC_NODE_01 // Status: SYNCHRONIZED</p>
+    <div className="h-full flex flex-col gap-4">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <div className="flex items-center gap-3">
+          <div className="w-1 h-6 bg-lime" />
+          <h1 className="text-2xl font-black tracking-tighter uppercase">Live_Session</h1>
+          {session.mode === 'FREE' ? (
+            <span className="ml-2 px-2 py-0.5 bg-amber/10 border border-amber/30 text-amber text-[9px] font-mono uppercase tracking-widest flex items-center gap-1">
+              <Infinity size={10} /> Free_Mode
+            </span>
+          ) : (
+            <span className="ml-2 px-2 py-0.5 bg-lime/10 border border-lime/30 text-lime text-[9px] font-mono uppercase tracking-widest flex items-center gap-1">
+              <Target size={10} /> Target: {session.targetReps}
+            </span>
+          )}
         </div>
-        <button className="px-4 py-2 bg-surface border border-white/10 text-[10px] font-mono tracking-widest uppercase hover:border-lime/50 hover:text-lime transition-all flex items-center gap-2 rounded-sm">
-          <RefreshCw size={12} /> Recalibrate_Eye
+        <button
+          onClick={onEndSession}
+          className="px-4 py-2 bg-red/10 border border-red/30 text-red text-[10px] font-mono tracking-widest uppercase hover:bg-red/20 transition-all rounded-sm"
+        >
+          End_Session
         </button>
       </div>
 
-      <div className="flex-1 grid grid-cols-12 gap-6 min-h-[500px]">
-        {/* Main Visualizer */}
-        <div className="col-span-12 lg:col-span-9 relative bg-bg border border-white/10 overflow-hidden rounded-sm group">
-          {/* Mock Camera Feed */}
-          <div className="absolute inset-0 bg-[#050705]">
-            <div className="absolute inset-0 opacity-10 [background-image:linear-gradient(rgba(163,230,53,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(163,230,53,0.1)_1px,transparent_1px)] [background-size:40px_40px]" />
-            
-            {/* Subject Wireframe Placeholder */}
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="w-64 h-96 border border-lime/10 rounded-full animate-pulse flex items-center justify-center">
-                <div className="w-32 h-32 border border-lime/20 rounded-full flex items-center justify-center">
-                  <Crosshair className="text-lime/20 w-8 h-8" />
-                </div>
+      <div className="flex-1 grid grid-cols-12 gap-4 min-h-[450px]">
+        {/* Camera Feed */}
+        <div className="col-span-12 lg:col-span-9 relative bg-black border border-white/10 overflow-hidden rounded-sm">
+          {/* Video + Canvas */}
+          <video
+            ref={videoRef}
+            className="absolute inset-0 w-full h-full object-cover"
+            playsInline
+            muted
+            style={{ transform: 'scaleX(-1)' }}
+          />
+          <canvas
+            ref={canvasRef}
+            className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+            style={{ transform: 'scaleX(-1)' }}
+          />
+
+          {/* Loading State */}
+          {isLoading && (
+            <div className="absolute inset-0 bg-bg/95 flex flex-col items-center justify-center gap-6 z-20">
+              <Loader2 size={48} className="text-lime animate-spin" />
+              <div className="text-center space-y-2">
+                <p className="text-sm font-bold tracking-[.2em] uppercase text-white">Initializing_AI_Eye</p>
+                <p className="text-[10px] font-mono text-muted uppercase tracking-widest">Loading MediaPipe Pose Landmarker...</p>
               </div>
             </div>
-          </div>
+          )}
+
+          {/* Calibration Overlay */}
+          {!isLoading && !isCalibrated && (
+            <div className="absolute inset-0 bg-bg/70 flex flex-col items-center justify-center gap-4 z-10">
+              <div className="w-40 h-40 border-2 border-lime/30 rounded-full flex items-center justify-center animate-pulse">
+                <Camera size={40} className="text-lime" />
+              </div>
+              <p className="text-xs font-mono text-lime uppercase tracking-widest">Calibrating...</p>
+              <p className="text-[10px] font-mono text-muted">Position yourself in frame</p>
+            </div>
+          )}
 
           {/* HUD Overlay */}
-          <div className="absolute inset-0 p-8 flex flex-col justify-between pointer-events-none">
-            <div className="flex justify-between items-start">
-              <div className="bg-bg/80 border border-lime/30 p-4 backdrop-blur-sm rounded-sm">
-                <div className="flex items-center gap-3 text-lime">
-                  <Camera size={16} className="animate-pulse" />
-                  <span className="text-[10px] font-mono font-bold tracking-widest uppercase">Feed_Active // Target_Locked</span>
+          {!isLoading && isCalibrated && (
+            <div className="absolute inset-0 p-6 flex flex-col justify-between pointer-events-none z-10">
+              {/* Top */}
+              <div className="flex justify-between items-start">
+                <div className="bg-bg/80 border border-lime/30 px-4 py-2 backdrop-blur-sm">
+                  <div className="flex items-center gap-2 text-lime">
+                    <Camera size={12} className="animate-pulse" />
+                    <span className="text-[9px] font-mono font-bold tracking-widest uppercase">{session.exercise}_AI_EYE // LIVE</span>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <div className="bg-bg/80 border border-white/10 px-3 py-2 backdrop-blur-sm text-center">
+                    <div className={`text-lg font-black ${elbowAngle > 0 && elbowAngle < 100 ? 'text-lime' : elbowAngle > 0 ? 'text-amber' : 'text-muted'}`}>
+                      {elbowAngle > 0 ? `${elbowAngle}°` : '---'}
+                    </div>
+                    <div className="text-[7px] font-mono text-muted uppercase tracking-widest">Elbow</div>
+                  </div>
+                  <div className="bg-bg/80 border border-white/10 px-3 py-2 backdrop-blur-sm text-center">
+                    <div className={`text-lg font-black ${hipAngle >= 155 ? 'text-lime' : hipAngle > 0 ? 'text-red' : 'text-muted'}`}>
+                      {hipAngle > 0 ? `${hipAngle}°` : '---'}
+                    </div>
+                    <div className="text-[7px] font-mono text-muted uppercase tracking-widest">Hip</div>
+                  </div>
                 </div>
               </div>
-              
-              <div className="text-right space-y-2">
-                <div className="text-[9px] text-muted uppercase font-mono tracking-widest">Precision_Index</div>
-                <div className="w-40 h-1 bg-surface border border-white/5 overflow-hidden">
-                  <div className="w-3/4 h-full bg-lime shadow-[0_0_10px_#A3E635]" />
+
+              {/* Center — Big Rep Counter */}
+              <div className="flex justify-center items-center">
+                <div className="flex flex-col items-center bg-bg/60 backdrop-blur-sm px-8 py-4 border border-white/5">
+                  <span className="text-[8rem] font-black leading-none tracking-tighter text-white drop-shadow-[0_0_20px_rgba(163,230,53,0.2)]">
+                    {session.currentReps.toString().padStart(2, '0')}
+                  </span>
+                  <span className="text-[10px] font-mono font-bold tracking-[.6em] text-muted uppercase -mt-2 ml-[.6em]">
+                    Validated_Reps
+                  </span>
+                  {session.mode === 'TARGET' && (
+                    <div className="mt-2 w-32 h-1 bg-surface overflow-hidden">
+                      <div
+                        className="h-full bg-lime shadow-[0_0_8px_#A3E635] transition-all duration-300"
+                        style={{ width: `${Math.min(100, (session.currentReps / session.targetReps) * 100)}%` }}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
-            </div>
 
-            <div className="flex justify-center items-center">
-              <div className={`
-                transition-all duration-300 transform flex flex-col items-center
-                ${isPulsing ? 'scale-110' : 'scale-100'}
-              `}>
-                <span className={`text-[12rem] font-black leading-none tracking-tighter transition-colors ${isPulsing ? 'text-lime' : 'text-white'}`}>
-                  {reps.toString().padStart(2, '0')}
-                </span>
-                <span className="text-xs font-mono font-bold tracking-[.8em] text-muted uppercase -mt-4 ml-[.8em]">Validated_Reps</span>
+              {/* Bottom */}
+              <div className="flex justify-between items-end text-[8px] font-mono text-muted tracking-widest uppercase">
+                <div className="flex gap-4">
+                  <span className="flex items-center gap-1.5">
+                    <span className={`w-1.5 h-1.5 rounded-full ${phase === 'DOWN' ? 'bg-amber animate-pulse' : 'bg-lime'}`} />
+                    Phase: {phase}
+                  </span>
+                  <span>Accuracy: <span className={accuracy >= 80 ? 'text-lime' : 'text-amber'}>{accuracy}%</span></span>
+                </div>
+                <span className="bg-bg/80 px-2 py-1 border border-white/5">{minutes}:{seconds.toString().padStart(2, '0')}</span>
               </div>
             </div>
-
-            <div className="flex justify-between items-end text-[9px] font-mono text-muted tracking-widest uppercase">
-              <div className="flex gap-6">
-                <div className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-lime" /> Accuracy: 98.4%</div>
-                <div className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-amber" /> Load: 45KG</div>
-              </div>
-              <div className="bg-surface px-2 py-1 border border-white/5">Frame_Rate: 60_FPS</div>
-            </div>
-          </div>
-
-          {/* Scanning Line */}
-          <div className="absolute top-0 left-0 w-full h-[1px] bg-lime/40 shadow-[0_0_15px_#A3E635] animate-[scan_4s_linear_infinite] pointer-events-none" />
+          )}
         </div>
 
         {/* Side Panel */}
-        <div className="col-span-12 lg:col-span-3 space-y-6">
-          <div className="bg-surface border border-white/10 p-6 space-y-6 rounded-sm">
-            <h3 className="text-[10px] font-bold tracking-[.2em] text-muted uppercase flex items-center gap-2">
-              <RefreshCw size={10} /> Simulation_Control
+        <div className="col-span-12 lg:col-span-3 flex flex-col gap-4 max-h-[calc(100vh-220px)]">
+          {/* Feedback Log */}
+          <div className="bg-surface border border-white/10 p-4 flex-1 overflow-hidden flex flex-col rounded-sm">
+            <h3 className="text-[9px] font-bold tracking-[.2em] text-muted uppercase flex items-center gap-2 mb-3 flex-shrink-0">
+              <ChevronRight size={10} className="text-lime" /> Live_Feedback
             </h3>
-            
-            <button 
-              onClick={handleSimulateRep}
-              className={`
-                w-full py-8 font-black tracking-[.2em] text-sm transition-all border rounded-sm uppercase
-                ${isPulsing 
-                  ? 'bg-lime border-lime text-bg shadow-[0_0_20px_rgba(163,230,53,0.4)]' 
-                  : 'bg-bg border-lime/30 text-lime hover:bg-lime/5 hover:border-lime/50'}
-              `}
-            >
-              Simulate_Pulse
-            </button>
-
-            <div className="space-y-4 pt-4 border-t border-white/5">
-              <div className="flex justify-between text-[10px] font-mono uppercase tracking-widest">
-                <span className="text-muted">Form_Consistency</span>
-                <span className="text-lime">92%</span>
-              </div>
-              <div className="w-full h-1 bg-bg overflow-hidden border border-white/5">
-                <div className="h-full bg-amber w-[92%] shadow-[0_0_5px_#F59E0B]" />
-              </div>
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(163,230,53,0.2) transparent' }}>
+              {session.feedback.map((item) => (
+                <div key={item.id} className={`p-2 border-l-2 text-[9px] font-mono ${
+                  item.type === 'ok' ? 'bg-lime/5 border-lime text-lime' :
+                  item.type === 'warn' ? 'bg-amber/5 border-amber text-amber' :
+                  'bg-red/5 border-red text-red'
+                }`}>
+                  <div className="flex justify-between opacity-50 mb-0.5">
+                    <span>{item.type.toUpperCase()}</span>
+                    <span>{item.timestamp}</span>
+                  </div>
+                  <p className="leading-snug tracking-wider">{item.text}</p>
+                </div>
+              ))}
+              {session.feedback.length === 0 && (
+                <p className="text-[9px] text-muted font-mono uppercase tracking-widest text-center py-8">
+                  {isLoading ? 'Loading AI...' : !isCalibrated ? 'Calibrating...' : 'Begin exercise — AI is watching'}
+                </p>
+              )}
             </div>
           </div>
 
-          <div className="bg-red/5 border border-red/20 p-4 flex gap-4 rounded-sm">
-            <AlertTriangle className="text-red shrink-0" size={16} />
-            <div>
-              <p className="text-[10px] font-bold text-red uppercase tracking-widest">System_Alert</p>
-              <p className="text-[11px] text-red/70 mt-1 leading-tight font-mono">Hyper-trophy threshold detected. Core stabilization protocol active.</p>
+          {/* Alert */}
+          {session.feedback.filter(f => f.type === 'bad').length > 3 && (
+            <div className="bg-red/5 border border-red/20 p-3 flex gap-3 rounded-sm flex-shrink-0">
+              <AlertTriangle className="text-red shrink-0" size={14} />
+              <div>
+                <p className="text-[9px] font-bold text-red uppercase tracking-widest">Form_Alert</p>
+                <p className="text-[9px] text-red/70 mt-0.5 leading-tight font-mono">Multiple rejected reps. Check your form.</p>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
-
-      <style>{`
-        @keyframes scan {
-          0% { top: 0; }
-          100% { top: 100%; }
-        }
-      `}</style>
     </div>
   );
 };
