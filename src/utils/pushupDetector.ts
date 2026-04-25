@@ -33,12 +33,14 @@ interface DetectionResult {
   phase: 'UP' | 'DOWN' | 'TRANSITIONING';
 }
 
-// Thresholds
-const ELBOW_UP_THRESHOLD = 155;    // Arms extended
-const ELBOW_DOWN_THRESHOLD = 100;  // Arms bent at bottom
-const HIP_SAG_THRESHOLD = 155;     // Hip should be roughly straight
-const MIN_ASCENT_TIME_MS = 600;    // Minimum time for ascent (tempo check)
-const MIN_VISIBILITY = 0.5;        // Minimum landmark visibility confidence
+// Thresholds — Tightened for precision
+const ELBOW_UP_THRESHOLD = 165;    // Must nearly lock out to complete
+const ELBOW_DOWN_THRESHOLD = 90;   // Must reach significant depth
+const PARTIAL_REP_THRESHOLD = 130; // Threshold to even consider it a "rep attempt"
+const HIP_SAG_THRESHOLD = 150;     // Hip should be roughly straight
+const MIN_ASCENT_TIME_MS = 500;    // Minimum time for ascent
+const MIN_VISIBILITY = 0.5;        // Increased for better reliability
+const SHOULDER_MOVEMENT_THRESHOLD = 0.05; // Minimum vertical movement of shoulders
 
 function calculateAngle(a: Landmark, b: Landmark, c: Landmark): number {
   const radians = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
@@ -54,6 +56,20 @@ export class PushupDetector {
   private repCount: number = 0;
   private consecutiveGoodReps: number = 0;
   private formViolationThisRep: string | null = null;
+  private maxDepthThisRep: number = 180;
+  private startShoulderY: number = 0;
+  private maxShoulderY: number = 0;
+  
+  // Smoothing buffers
+  private elbowBuffer: number[] = [];
+  private hipBuffer: number[] = [];
+  private readonly BUFFER_SIZE = 5; // Increased for more stability
+
+  private smoothAngle(angle: number, buffer: number[]): number {
+    buffer.push(angle);
+    if (buffer.length > this.BUFFER_SIZE) buffer.shift();
+    return buffer.reduce((a, b) => a + b, 0) / buffer.length;
+  }
 
   reset(): void {
     this.phase = 'UP';
@@ -62,6 +78,9 @@ export class PushupDetector {
     this.repCount = 0;
     this.consecutiveGoodReps = 0;
     this.formViolationThisRep = null;
+    this.maxDepthThisRep = 180;
+    this.elbowBuffer = [];
+    this.hipBuffer = [];
   }
 
   detect(landmarks: Landmark[]): DetectionResult {
@@ -96,16 +115,11 @@ export class PushupDetector {
       ankle = landmarks[28];
     }
 
-    // Check visibility
-    const minVis = Math.min(
-      shoulder.visibility ?? 0,
-      elbow.visibility ?? 0,
-      wrist.visibility ?? 0,
-      hip.visibility ?? 0,
-      ankle.visibility ?? 0
-    );
+    // Check visibility with some leeway
+    const importantJoints = [shoulder, elbow, wrist, hip];
+    const avgVis = importantJoints.reduce((acc, j) => acc + (j.visibility ?? 0), 0) / importantJoints.length;
 
-    if (minVis < MIN_VISIBILITY) {
+    if (avgVis < MIN_VISIBILITY) {
       return {
         repCompleted: false,
         formFeedback: null,
@@ -115,60 +129,82 @@ export class PushupDetector {
       };
     }
 
-    const elbowAngle = calculateAngle(shoulder, elbow, wrist);
-    const hipAngle = calculateAngle(shoulder, hip, ankle);
+    const rawElbowAngle = calculateAngle(shoulder, elbow, wrist);
+    const rawHipAngle = calculateAngle(shoulder, hip, ankle);
+    
+    const elbowAngle = this.smoothAngle(rawElbowAngle, this.elbowBuffer);
+    const hipAngle = this.smoothAngle(rawHipAngle, this.hipBuffer);
+
     const now = Date.now();
 
     let repCompleted = false;
     let formFeedback: { type: FeedbackType; message: string } | null = null;
 
+    // Track maximum depth reached in this rep
+    if (this.phase === 'DOWN') {
+      this.maxDepthThisRep = Math.min(this.maxDepthThisRep, elbowAngle);
+    }
+
     // --- State Machine ---
-    if (this.phase === 'UP' && elbowAngle < ELBOW_DOWN_THRESHOLD) {
-      // Transitioned to DOWN
-      this.phase = 'DOWN';
-      this.lastDownTime = now;
+    if (this.phase === 'UP' && elbowAngle < ELBOW_UP_THRESHOLD - 10) {
+      // Starting descent
+      this.phase = 'TRANSITIONING';
       this.formViolationThisRep = null;
-
-      // Check hip sag at the bottom
-      if (hipAngle < HIP_SAG_THRESHOLD) {
-        this.formViolationThisRep = 'HIP_SAG';
+      this.maxDepthThisRep = 180;
+      this.startShoulderY = shoulder.y;
+      this.maxShoulderY = shoulder.y;
+    } else if (this.phase === 'TRANSITIONING' || this.phase === 'DOWN') {
+      // Track vertical range
+      this.maxShoulderY = Math.max(this.maxShoulderY, shoulder.y);
+      
+      if (this.phase === 'TRANSITIONING' && elbowAngle < ELBOW_DOWN_THRESHOLD) {
+        this.phase = 'DOWN';
+        this.lastDownTime = now;
+        
+        // Check hip sag early
+        if (hipAngle < HIP_SAG_THRESHOLD) {
+          this.formViolationThisRep = 'HIP_SAG';
+        }
       }
-    } else if (this.phase === 'DOWN' && elbowAngle > ELBOW_UP_THRESHOLD) {
-      // Transitioned back to UP — rep completed
+    }
+    
+    if ((this.phase === 'DOWN' || this.phase === 'TRANSITIONING') && elbowAngle > ELBOW_UP_THRESHOLD) {
+      // Returned to UP position
+      const shoulderDisplacement = Math.abs(this.maxShoulderY - this.startShoulderY);
+      const wasDescending = (this.phase === 'DOWN' || this.maxDepthThisRep < PARTIAL_REP_THRESHOLD) && 
+                           shoulderDisplacement > SHOULDER_MOVEMENT_THRESHOLD;
+      
+      if (wasDescending) {
+        repCompleted = true;
+        this.repCount++;
+        const ascentTime = now - this.lastDownTime;
+
+        // Validate form
+        if (this.maxDepthThisRep > ELBOW_DOWN_THRESHOLD) {
+          formFeedback = {
+            type: 'bad',
+            message: `Void — Insufficient depth. You only reached ${Math.round(this.maxDepthThisRep)}°.`,
+          };
+          this.consecutiveGoodReps = 0;
+        } else if (this.formViolationThisRep === 'HIP_SAG') {
+          formFeedback = {
+            type: 'bad',
+            message: `Void — Hip sag detected. Keep your core tight.`,
+          };
+          this.consecutiveGoodReps = 0;
+        } else {
+          // Good rep
+          this.consecutiveGoodReps++;
+          const streak = this.consecutiveGoodReps >= 3 ? ` [STREAK: ${this.consecutiveGoodReps}]` : '';
+          formFeedback = {
+            type: 'ok',
+            message: `Rep ${this.repCount} validated.${streak}`,
+          };
+        }
+      }
+      
       this.phase = 'UP';
-      this.lastUpTime = now;
-      repCompleted = true;
-      this.repCount++;
-
-      const ascentTime = now - this.lastDownTime;
-
-      // Validate form
-      if (this.formViolationThisRep === 'HIP_SAG') {
-        formFeedback = {
-          type: 'bad',
-          message: `Rep void — Hip sag detected. Maintain alignment. (Hip: ${Math.round(hipAngle)}°)`,
-        };
-        this.consecutiveGoodReps = 0;
-      } else if (ascentTime < MIN_ASCENT_TIME_MS) {
-        formFeedback = {
-          type: 'warn',
-          message: `Tempo warning — Ascent too fast (${(ascentTime / 1000).toFixed(1)}s). Slow down.`,
-        };
-        this.consecutiveGoodReps = 0;
-      } else {
-        // Good rep
-        this.consecutiveGoodReps++;
-        const bonus = this.consecutiveGoodReps >= 5 ? ' +10 XP streak bonus!' : '';
-        formFeedback = {
-          type: 'ok',
-          message: `Rep ${this.repCount} — Form validated. Depth: ${Math.round(elbowAngle)}°.${bonus}`,
-        };
-      }
-    } else if (this.phase === 'UP' && elbowAngle < ELBOW_UP_THRESHOLD && elbowAngle >= ELBOW_DOWN_THRESHOLD) {
-      // Partial depth — warn in real time
-      if (elbowAngle > ELBOW_DOWN_THRESHOLD + 15) {
-        // They're going down but not deep enough yet — just transitioning
-      }
+      this.maxDepthThisRep = 180;
     }
 
     return {

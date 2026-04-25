@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { Camera, AlertTriangle, ChevronRight, Loader2, Infinity, Target, VideoOff, Check, ArrowRight, Move } from 'lucide-react';
 import { usePoseDetection } from '../hooks/usePoseDetection';
+import { useVoiceFeedback } from '../hooks/useVoiceFeedback';
 import type { WorkoutSession, FeedbackType } from '../utils/types';
 
 interface ActiveSimulationProps {
@@ -14,10 +15,23 @@ const ActiveSimulation: React.FC<ActiveSimulationProps> = ({ session, onAddFeedb
   const [hipAngle, setHipAngle] = useState(0);
   const [phase, setPhase] = useState('UP');
   const [guideAcknowledged, setGuideAcknowledged] = useState(false);
+  const { speak } = useVoiceFeedback();
 
   const handleRepDetected = useCallback((type: FeedbackType, message: string) => {
     onAddFeedback(type, message);
-  }, [onAddFeedback]);
+    
+    // Tactically announce feedback
+    if (type === 'ok') {
+      const repNum = session.currentReps + 1;
+      // Speak every rep if low count, otherwise every 5
+      if (repNum <= 5 || repNum % 5 === 0) {
+        speak(`Rep ${repNum}`);
+      }
+    } else {
+      // Always speak errors/warnings
+      speak(message.split('.')[0]); // Speak only the main message part
+    }
+  }, [onAddFeedback, session.currentReps, speak]);
 
   const handleFormUpdate = useCallback((elbow: number, hip: number, p: string) => {
     setElbowAngle(elbow);
