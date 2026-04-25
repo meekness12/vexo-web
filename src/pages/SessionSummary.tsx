@@ -1,6 +1,7 @@
 import React from 'react';
-import { Terminal, Award, Zap, ChevronRight, Share2, AlertTriangle } from 'lucide-react';
+import { Terminal, Award, Zap, ChevronRight, Share2, AlertTriangle, Brain } from 'lucide-react';
 import type { WorkoutSession } from '../utils/types';
+import AIAnalysis from '../components/AIAnalysis';
 
 interface SessionSummaryProps {
   session: WorkoutSession;
@@ -65,6 +66,9 @@ const SessionSummary: React.FC<SessionSummaryProps> = ({ session, onRestart }) =
           {missionComplete ? 'MISSION_COMPLETE' : 'MISSION_ABORTED'}
         </div>
       </div>
+
+      {/* AI Analysis Section */}
+      <AIAnalysis session={session} />
 
       {/* Primary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

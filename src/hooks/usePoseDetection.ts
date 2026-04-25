@@ -21,6 +21,28 @@ export const usePoseDetection = ({ onRepDetected, onFormUpdate, enabled }: PoseD
   const animFrameRef = useRef<number>(0);
   const streamRef = useRef<MediaStream | null>(null);
   const lastTimestampRef = useRef<number>(-1);
+  const smoothedLandmarksRef = useRef<any[]>([]);
+
+  const smoothLandmarks = (newLandmarks: any[]) => {
+    if (smoothedLandmarksRef.current.length === 0) {
+      smoothedLandmarksRef.current = newLandmarks;
+      return newLandmarks;
+    }
+
+    const alpha = 0.6; // Smoothing factor
+    const smoothed = newLandmarks.map((lm, i) => {
+      const prev = smoothedLandmarksRef.current[i];
+      if (!prev) return lm;
+      return {
+        x: prev.x * (1 - alpha) + lm.x * alpha,
+        y: prev.y * (1 - alpha) + lm.y * alpha,
+        z: prev.z * (1 - alpha) + lm.z * alpha,
+        visibility: lm.visibility,
+      };
+    });
+    smoothedLandmarksRef.current = smoothed;
+    return smoothed;
+  };
 
   const cleanup = useCallback(() => {
     if (animFrameRef.current) {
@@ -137,28 +159,30 @@ export const usePoseDetection = ({ onRepDetected, onFormUpdate, enabled }: PoseD
                 ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
 
                 const drawingUtils = new DrawingUtils(ctx);
-                for (const landmark of result.landmarks) {
+                for (const rawLandmarks of result.landmarks) {
+                  const landmark = smoothLandmarks(rawLandmarks);
+                  
                   // Draw connections
                   drawingUtils.drawConnectors(
-                    landmark,
+                    landmark as any,
                     PoseLandmarker.POSE_CONNECTIONS,
                     { color: 'rgba(163, 230, 53, 0.4)', lineWidth: 2 }
                   );
                   // Draw landmarks
-                  drawingUtils.drawLandmarks(landmark, {
+                  drawingUtils.drawLandmarks(landmark as any, {
                     color: '#A3E635',
                     fillColor: 'rgba(163, 230, 53, 0.3)',
                     lineWidth: 1,
                     radius: 3,
                   });
-                }
 
-                // Run pushup detection
-                const detection = detectorRef.current.detect(landmark as any);
-                onFormUpdate(detection.elbowAngle, detection.hipAngle, detection.phase);
+                  // Run pushup detection
+                  const detection = detectorRef.current.detect(landmark as any);
+                  onFormUpdate(detection.elbowAngle, detection.hipAngle, detection.phase);
 
-                if (detection.repCompleted && detection.formFeedback) {
-                  onRepDetected(detection.formFeedback.type, detection.formFeedback.message);
+                  if (detection.repCompleted && detection.formFeedback) {
+                    onRepDetected(detection.formFeedback.type, detection.formFeedback.message);
+                  }
                 }
               }
             }
